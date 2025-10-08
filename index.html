@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture Carbon Footprint AI Agent</title>
+    <meta name="description" content="Chat with an AI agent to analyze the carbon footprint of architectural projects.">
+    <meta name="author" content="Ricardo Rodrigues">
+
+    <!-- Google Fonts: Roboto for a clean, modern look -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <!-- marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- highlight.js for syntax highlighting within code blocks -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color-dark: #1E1E1E;
+            --surface-color-dark: #2D2D2D;
+            --chat-user-bg: #4A4A4A; /* Slightly different for user messages */
+            --chat-agent-bg: #383838; /* Slightly different for agent messages */
+            --text-color-light: #E0E0E0;
+            --text-color-medium: #B0B0B0;
+            --border-color-dark: #4A4A4A;
+            --accent-color: #4CAF50; /* A pleasant green */
+            --accent-color-hover: #5cb85c;
+            --error-color: #EF5350; /* Material red for errors */
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color-dark);
+            color: var(--text-color-light);
+            display: flex;
+            flex-direction: column;
+            height: 100vh; /* Full viewport height */
+            overflow: hidden; /* Prevent body scroll, chat-history handles it */
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+            margin: 0 auto; /* Center the main content */
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        header {
+            background-color: var(--surface-color-dark);
+            padding: 20px 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            z-index: 10;
+        }
+
+        header h1 {
+            color: var(--accent-color);
+            font-weight: 700;
+            text-align: center;
+            margin: 0;
+            font-size: 2.2em;
+            letter-spacing: 0.5px;
+        }
+
+        .session-settings {
+            background-color: var(--bg-color-dark);
+            padding: 15px 30px;
+            border-bottom: 1px solid var(--border-color-dark);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .setting-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .setting-group label {
+            color: var(--text-color-medium);
+            font-size: 0.9em;
+            white-space: nowrap;
+        }
+        .session-settings input[type="text"] {
+            padding: 8px 10px;
+            border: 1px solid var(--border-color-dark);
+            border-radius: 6px;
+            background-color: var(--surface-color-dark);
+            color: var(--text-color-light);
+            font-size: 0.9em;
+            width: 150px; /* Fixed width for session inputs */
+            transition: border-color 0.2s ease-in-out;
+        }
+        .session-settings input[type="text"]:focus {
+            border-color: var(--accent-color);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+        }
+
+        .chat-history {
+            flex-grow: 1; /* Takes available vertical space */
+            overflow-y: auto; /* Scrollable chat area */
+            padding: 20px 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 12px;
+            line-height: 1.6;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            font-size: 0.95em;
+        }
+
+        .user-message {
+            background-color: var(--chat-user-bg);
+            align-self: flex-end; /* Align to right */
+            margin-left: auto; /* Push to right */
+            border-bottom-right-radius: 4px; /* Slight tweak for chat bubble look */
+        }
+
+        .agent-message {
+            background-color: var(--chat-agent-bg);
+            align-self: flex-start; /* Align to left */
+            margin-right: auto; /* Push to left */
+            border-bottom-left-radius: 4px; /* Slight tweak for chat bubble look */
+        }
+
+        .message-bubble p:first-child { margin-top: 0; }
+        .message-bubble p:last-child { margin-bottom: 0; }
+
+
+        /* Markdown specific styling for dark mode */
+        .message-bubble h1, .message-bubble h2, .message-bubble h3, .message-bubble h4, .message-bubble h5, .message-bubble h6 {
+            color: var(--accent-color);
+            margin-top: 1.5em;
+            margin-bottom: 0.8em;
+            border-bottom: 1px solid var(--border-color-dark);
+            padding-bottom: 0.5em;
+        }
+        .message-bubble h1 { font-size: 1.8em; }
+        .message-bubble h2 { font-size: 1.5em; }
+        .message-bubble h3 { font-size: 1.2em; }
+
+        .message-bubble p {
+            margin-bottom: 1em;
+        }
+
+        .message-bubble a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+        .message-bubble a:hover {
+            text-decoration: underline;
+        }
+
+        .message-bubble ul, .message-bubble ol {
+            margin-left: 25px;
+            padding: 0;
+            margin-bottom: 1em;
+        }
+
+        .message-bubble li {
+            margin-bottom: 0.5em;
+        }
+
+        .message-bubble blockquote {
+            border-left: 4px solid var(--accent-color);
+            padding-left: 15px;
+            margin: 1em 0;
+            color: var(--text-color-medium);
+            background-color: #3f3f3f;
+            padding: 10px 15px;
+            border-radius: 4px;
+        }
+
+        .message-bubble code {
+            font-family: 'Fira Code', 'Cascadia Code', 'Consolas', 'Monaco', monospace;
+            background-color: #444;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            color: #C0C0C0;
+        }
+
+        .message-bubble pre {
+            background-color: #282C34; /* highlight.js default dark background */
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1.5em 0;
+        }
+        .message-bubble pre code {
+            background-color: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.9em;
+            color: inherit; /* Use highlight.js colors */
+        }
+        
+        .input-footer {
+            background-color: var(--surface-color-dark);
+            padding: 20px 30px;
+            box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.4);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            z-index: 10;
+        }
+
+        #prompt-input {
+            flex-grow: 1; /* Takes most of the space */
+            padding: 12px 15px;
+            border: 1px solid var(--border-color-dark);
+            border-radius: 25px; /* Pill shape */
+            background-color: var(--bg-color-dark);
+            color: var(--text-color-light);
+            font-size: 1em;
+            box-sizing: border-box;
+            transition: border-color 0.2s ease-in-out;
+            resize: none; /* Disable vertical resize */
+            min-height: 48px; /* Ensure button alignment */
+            max-height: 150px; /* Limit text area height */
+            overflow-y: auto;
+        }
+
+        #prompt-input:focus {
+            border-color: var(--accent-color);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+        }
+
+        #send-button {
+            background-color: var(--accent-color);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 25px; /* Pill shape */
+            cursor: pointer;
+            font-size: 1.05em;
+            font-weight: 500;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            white-space: nowrap; /* Prevent button text wrap */
+        }
+
+        #send-button:hover {
+            background-color: var(--accent-color-hover);
+            transform: translateY(-1px);
+        }
+
+        #send-button:disabled {
+            background-color: var(--border-color-dark);
+            cursor: not-allowed;
+        }
+
+        #error-message {
+            color: var(--error-color);
+            font-weight: 500;
+            text-align: center;
+            padding: 10px;
+            background-color: rgba(239, 83, 80, 0.2);
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        /* Loading indicator (optional, but good for streaming) */
+        .dot-flashing {
+            position: relative;
+            width: 10px;
+            height: 10px;
+            border-radius: 5px;
+            background-color: var(--text-color-medium);
+            color: var(--text-color-medium);
+            animation: dotFlashing 1s infinite alternate;
+            animation-delay: 0s;
+        }
+
+        .dot-flashing::before, .dot-flashing::after {
+            content: '';
+            display: inline-block;
+            position: absolute;
+            top: 0;
+        }
+
+        .dot-flashing::before {
+            left: -15px;
+            width: 10px;
+            height: 10px;
+            border-radius: 5px;
+            background-color: var(--text-color-medium);
+            color: var(--text-color-medium);
+            animation: dotFlashing 1s infinite alternate;
+            animation-delay: .5s;
+        }
+
+        .dot-flashing::after {
+            left: 15px;
+            width: 10px;
+            height: 10px;
+            border-radius: 5px;
+            background-color: var(--text-color-medium);
+            color: var(--text-color-medium);
+            animation: dotFlashing 1s infinite alternate;
+            animation-delay: 1s;
+        }
+
+        @keyframes dotFlashing {
+            0% { background-color: var(--text-color-medium); }
+            50%, 100% { background-color: var(--accent-color); }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8em;
+            }
+            .session-settings {
+                flex-direction: column;
+                padding: 10px 15px;
+                gap: 10px;
+            }
+            .session-settings input[type="text"] {
+                width: calc(100% - 120px); /* Adjust width for smaller screens */
+            }
+            .input-footer {
+                flex-direction: column;
+                padding: 15px;
+                gap: 10px;
+            }
+            #prompt-input {
+                width: 100%;
+            }
+            #send-button {
+                width: 100%;
+                padding: 10px 20px;
+            }
+            .chat-history {
+                padding: 15px;
+            }
+            .message-bubble {
+                max-width: 90%;
+                padding: 12px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Architecture Carbon Footprint AI Agent</h1>
+        </header>
+
+        <div class="session-settings">
+            <div class="setting-group">
+                <label for="user-id">User ID:</label>
+                <input type="text" id="user-id" value="demo-user" placeholder="Enter a user ID">
+            </div>
+            <div class="setting-group">
+                <label for="session-id">Session ID:</label>
+                <input type="text" id="session-id" value="chat-session" placeholder="Enter a session ID">
+            </div>
+        </div>
+
+        <div class="chat-history" id="chat-history">
+            <!-- Chat messages will be appended here -->
+            <div class="message-bubble agent-message initial-message">
+                <p>Hello! I'm the Architecture Carbon Footprint AI Agent. How can I assist you with analyzing an architectural project's carbon footprint today?</p>
+            </div>
+        </div>
+
+        <div class="input-footer">
+            <textarea id="prompt-input" placeholder="Analyze the project at https://example.com/project-delta. Include embodied and operational carbon, and suggest mitigation strategies." rows="1"></textarea>
+            <button id="send-button">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const userIdInput = document.getElementById('user-id');
+        const sessionIdInput = document.getElementById('session-id');
+        const promptInput = document.getElementById('prompt-input');
+        const sendButton = document.getElementById('send-button');
+        const chatHistory = document.getElementById('chat-history');
+
+        // Configure marked.js to use highlight.js for code blocks
+        marked.setOptions({
+            gfm: true, // GitHub Flavored Markdown
+            breaks: true, // Render `\n` as `<br>`
+            highlight: function(code, lang) {
+                const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                return hljs.highlight(code, { language }).value;
+            },
+            langPrefix: 'hljs language-', // Prefix for language classes
+        });
+
+        let currentAgentMessageElement = null;
+        let isSendingMessage = false;
+
+        // Function to create and append a new message bubble
+        function appendMessage(type, content = '', isInitial = false) {
+            const bubble = document.createElement('div');
+            bubble.classList.add('message-bubble', `${type}-message`);
+            if (isInitial) {
+                bubble.classList.add('initial-message');
+            }
+            bubble.innerHTML = isInitial ? content : marked.parse(content); // Render initial immediately
+            chatHistory.appendChild(bubble);
+            chatHistory.scrollTop = chatHistory.scrollHeight; // Scroll to bottom
+            return bubble;
+        }
+
+        // Function to render Markdown in a specific bubble
+        function renderMarkdownInBubble(bubbleElement, markdownText) {
+            bubbleElement.innerHTML = marked.parse(markdownText);
+            bubbleElement.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+            chatHistory.scrollTop = chatHistory.scrollHeight; // Scroll to bottom
+        }
+
+        // --- Core request logic ---
+        async function sendMessage() {
+            if (isSendingMessage) return; // Prevent multiple sends
+            isSendingMessage = true;
+            sendButton.disabled = true;
+            promptInput.disabled = true;
+
+            const prompt = promptInput.value.trim();
+            const userId = userIdInput.value.trim();
+            const sessionId = sessionIdInput.value.trim();
+
+            if (!prompt) {
+                alert('Please enter a message.');
+                isSendingMessage = false;
+                sendButton.disabled = false;
+                promptInput.disabled = false;
+                return;
+            }
+            if (!userId) {
+                alert('Please enter a User ID in session settings.');
+                isSendingMessage = false;
+                sendButton.disabled = false;
+                promptInput.disabled = false;
+                return;
+            }
+            if (!sessionId) {
+                alert('Please enter a Session ID in session settings.');
+                isSendingMessage = false;
+                sendButton.disabled = false;
+                promptInput.disabled = false;
+                return;
+            }
+
+            // Append user message to chat history
+            appendMessage('user', prompt);
+            promptInput.value = ''; // Clear input field
+
+            // Prepare agent message bubble for streaming
+            currentAgentMessageElement = appendMessage('agent', '<div class="dot-flashing"></div>'); // Placeholder for streaming
+            let accumulatedResponse = '';
+
+            try {
+                const response = await fetch('carbon-streaming', { // Always streaming now
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ prompt, user_id: userId, session_id: sessionId }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let done;
+                let value;
+
+                // Remove loading indicator when first data arrives
+                currentAgentMessageElement.innerHTML = ''; 
+
+                while (!done) {
+                    ({ value, done } = await reader.read());
+                    if (done) {
+                        break;
+                    }
+                    accumulatedResponse += decoder.decode(value, { stream: true });
+                    renderMarkdownInBubble(currentAgentMessageElement, accumulatedResponse);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                // Display error in the agent's bubble
+                renderMarkdownInBubble(currentAgentMessageElement, `<p style="color: var(--error-color);">Error: ${error.message}</p><p>Failed to get response. Please check the server and your prompt.</p>`);
+            } finally {
+                isSendingMessage = false;
+                sendButton.disabled = false;
+                promptInput.disabled = false;
+                currentAgentMessageElement = null; // Reset
+            }
+        }
+
+        // Event Listeners
+        sendButton.addEventListener('click', sendMessage);
+
+        promptInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) { // Send on Enter, but allow Shift+Enter for new line
+                event.preventDefault(); // Prevent new line in textarea
+                sendMessage();
+            }
+        });
+
+        // Adjust textarea height dynamically
+        promptInput.addEventListener('input', () => {
+            promptInput.style.height = 'auto'; // Reset height to recalculate
+            promptInput.style.height = Math.min(promptInput.scrollHeight, 150) + 'px';
+        });
+        
+        // Initial setup for the prompt input height
+        promptInput.style.height = Math.min(promptInput.scrollHeight, 150) + 'px';
+    </script>
+</body>
+</html>
