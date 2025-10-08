@@ -267,73 +267,58 @@ async def get_carbon(request: PromptRequest):
 
 
 async def stream_agent_response(prompt: str, request: PromptRequest):
-    """Stream agent response with tool usage indicators."""
+    """
+    Stream agent responses as they are generated.
+    
+    Yields text chunks and tool usage notifications in real-time.
+    """
     try:
-        # Create streaming callback
-        callback = AsyncIteratorCallbackHandler()
-        llm = create_llm(streaming=True)
-        
-        # Configure LLM with callback
-        llm.callbacks = [callback]
-        
-        tools = streaming_tools
-        prompt_template = ChatPromptTemplate.from_messages([
-            ("system", CARBON_SYSTEM_PROMPT),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("human", "{input}"),
-            MessagesPlaceholder(variable_name="agent_scratchpad"),
-        ])
-        
-        agent = create_tool_calling_agent(llm, tools, prompt_template)
-        agent_executor = AgentExecutor(
-            agent=agent,
-            tools=tools,
-            verbose=True,
-            handle_parsing_errors=True
+        # Create agent for this request
+        agent = create_carbon_agent(
+            user_id=request.user_id, 
+            session_id=request.session_id,
+            streaming=True
         )
         
-        # Get history
+        # Get session history
         history = get_session_history(request.user_id, request.session_id)
         sliding_window = SlidingWindowMemory(window_size=20)
         filtered_messages = sliding_window.filter_messages(history.messages)
         
-        # Run agent in background task
-        async def run_agent():
-            try:
-                result = await agent_executor.ainvoke({
-                    "input": prompt,
-                    "chat_history": filtered_messages
-                })
+        # Stream agent responses using astream_events
+        full_response = ""
+        async for event in agent.astream_events(
+            {"input": prompt},
+            config={"configurable": {"session_id": request.session_id}},
+            version="v1"
+        ):
+            kind = event["event"]
+            
+            # Handle tool calls
+            if kind == "on_tool_start":
+                tool_name = event.get("name", "unknown")
+                yield f"\n\n🔧 Using tool: {tool_name}\n"
+            
+            # Handle LLM token streaming
+            elif kind == "on_chat_model_stream":
+                content = event["data"]["chunk"].content
+                if content:
+                    # Check for ready_to_summarize signal
+                    if "ready_to_summarize" in str(content).lower():
+                        yield "\n"
+                    else:
+                        full_response += content
+                        yield content
+        
+        # Save conversation to history after streaming completes
+        if full_response:
+            history.add_user_message(prompt)
+            history.add_ai_message(full_response)
                 
-                # Save to history
-                history.add_user_message(prompt)
-                history.add_ai_message(result.get("output", ""))
-                
-                callback.done.set()
-            except Exception as e:
-                await callback.aiter().asend(f"\nError: {str(e)}")
-                callback.done.set()
-        
-        # Start agent task
-        task = asyncio.create_task(run_agent())
-        
-        # Stream tokens
-        is_summarizing = False
-        async for token in callback.aiter():
-            # Check if we're using a tool
-            if "ready_to_summarize" in str(token).lower():
-                is_summarizing = True
-                yield "\n"
-            elif "🔧" in str(token) or "tool" in str(token).lower():
-                yield f"\n\n{token}"
-            else:
-                yield token
-        
-        await task
-        
     except Exception as e:
-        yield f"\nError: {str(e)}"
-
+        error_msg = f"\n\nError: {str(e)}"
+        print(f"Error streaming carbon agent: {e}")  # Log error
+        yield error_msg
 
 @app.post('/carbon-streaming')
 async def get_carbon_streaming(request: PromptRequest):

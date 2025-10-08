@@ -18,9 +18,7 @@ The AI agent can:
 
 The API exposes both **synchronous** and **streaming** endpoints for real-time interaction, making it suitable for integration into dashboards, design tools, or research workflows.
 
-[▶️YouTube🎥 - Watch the demo](https://www.youtube.com/watch?v=jm0TCv11ZVQ)
-
-[![▶️YouTube🎥 - Watch the demo](img.png)](https://www.youtube.com/watch?v=jm0TCv11ZVQ)
+[▶️YouTube🎥 - Watch my LangChain the demo](https://youtu.be/ioplaSdSPD8)
 
 ---
 
